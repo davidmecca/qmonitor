@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="trace" monitorInterval="60">
+	<Properties>
+		<Property name="basePath">c:/temp/logs</Property>
+		<Property name="logFileName">mdm_inbound_queue_monitor.log</Property>
+	</Properties>
+
+	<Appenders>
+		<Console name="console" target="SYSTEM_OUT">
+			<PatternLayout
+				pattern="[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n" />
+		</Console>
+	</Appenders>
+	<Loggers>
+		<Logger name="com.hps.mayo" level="DEBUG" additivity="false">
+			<AppenderRef ref="console" />
+		</Logger>
+		<Logger name="org.springframework" level="INFO" additivity="false">
+			<AppenderRef ref="console" />
+		</Logger>
+		<Logger name="org.springframework.integration" level="INFO"
+			additivity="false">
+			<AppenderRef ref="console" />
+		</Logger>
+		<Root level="TRACE">
+			<AppenderRef ref="console" />
+		</Root>
+	</Loggers>
+</Configuration>

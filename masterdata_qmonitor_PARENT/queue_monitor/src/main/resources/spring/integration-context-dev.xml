@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-jdbc="http://www.springframework.org/schema/integration/jdbc"
+	xmlns:int-jms="http://www.springframework.org/schema/integration/jms"
+	xmlns:integration="http://www.springframework.org/schema/integration"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jms="http://www.springframework.org/schema/jms" xmlns:jee="http://www.springframework.org/schema/jee"
+	xmlns:int-xml="http://www.springframework.org/schema/integration/xml"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration-4.3.xsd
+		http://www.springframework.org/schema/integration/jdbc http://www.springframework.org/schema/integration/jdbc/spring-integration-jdbc.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/integration/jms http://www.springframework.org/schema/integration/jms/spring-integration-jms.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.2.xsd
+		http://www.springframework.org/schema/jee http://www.springframework.org/schema/jee/spring-jee-3.0.xsd
+		http://www.springframework.org/schema/jms http://www.springframework.org/schema/jms/spring-jms.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-3.0.xsd"
+	profile="development">
+
+	<int:channel id="inboundChannel" />
+	<int:channel id="processingChannel" />
+	<int:channel id="errorChannel" />
+	<int:channel id="parsingErrorChannel" />
+	<int:channel id="mdmErrorChannel" />
+
+	<!-- Channel message handlers -->
+	<bean id="inboundMessageHandler"
+		class="com.hps.mayo.integration.messaging.InboundMessageHandler" />
+	<bean id="errorHandler" class="com.hps.mayo.integration.messaging.ErrorChannelHandler" />
+
+	<!-- Main message transformation class -->
+	<bean id="payloadTransformerBean" class="com.hps.mayo.message.transformers.MessageTransformer" />
+
+	<int:chain input-channel="inboundChannel" output-channel="processingChannel">
+		<int:transformer ref="payloadTransformerBean" method="transformPayload" />
+		<int:transformer ref="payloadTransformerBean" method="parseHl7" />
+		<int:transformer ref="payloadTransformerBean" method="confirmMessageElements" />
+	</int:chain>
+
+	<int:exception-type-router input-channel="errorChannel"
+		default-output-channel="nullChannel">
+		<int:mapping exception-type="com.hps.mayo.exceptions.MessageParsingException"
+			channel="parsingErrorChannel" />
+		<int:mapping
+			exception-type="org.springframework.jms.support.converter.MessageConversionException"
+			channel="parsingErrorChannel" />
+		<int:mapping exception-type="com.hps.mayo.exceptions.MdmProcessingException"
+			channel="mdmErrorChannel" />
+	</int:exception-type-router>
+
+	<int:service-activator id="parsingErrorChannelActivator"
+		input-channel="mdmErrorChannel" ref="errorRouterService" method="mdmExceptionHandler">
+	</int:service-activator>
+
+	<int:service-activator id="mdmErrorChannelActivator"
+		input-channel="parsingErrorChannel" ref="errorRouterService" method="parsingExceptionHandler">
+	</int:service-activator>
+
+	<!-- start connection configuration -->
+
+	<!-- Primary JMS connections -->
+	<bean id="jmsConnectionFactoryPrimary" class="com.ibm.mq.jms.MQQueueConnectionFactory"
+		primary="true">
+		<property name="hostName" value="ROFESB901A" />
+		<property name="port" value="1416" />
+		<property name="queueManager" value="Q30T" />
+		<property name="transportType" value="1" />
+		<property name="channel" value="Q30T.MDM" />
+	</bean>
+
+	<bean id="jmsConnectionFactoryAdapterPrimary"
+		class="org.springframework.jms.connection.UserCredentialsConnectionFactoryAdapter">
+		<property name="targetConnectionFactory">
+			<ref bean="jmsConnectionFactoryPrimary" />
+		</property>
+		<property name="username" value="${custom.mq.target.userid}" />
+		<property name="password" value="${custom.mq.target.password}" />
+	</bean>
+
+	<bean id="jmsTemplatePrimary" name="jmsTemplatePrimary"
+		class="org.springframework.jms.core.JmsTemplate">
+		<property name="connectionFactory" ref="jmsConnectionFactoryAdapterPrimary" />
+	</bean>
+
+	<!-- Secondary (fail-over) JMS connections -->
+	<bean id="jmsConnectionFactorySecondary" class="com.ibm.mq.jms.MQQueueConnectionFactory"
+		primary="false">
+		<property name="hostName" value="ROFESB901A" />
+		<property name="port" value="1416" />
+		<property name="queueManager" value="Q30T" />
+		<property name="transportType" value="1" />
+		<property name="channel" value="Q30T.MDM" />
+	</bean>
+
+	<bean id="jmsConnectionFactoryAdapterSecondary" name="jmsConnectionFactoryAdapterSecondary"
+		class="org.springframework.jms.connection.UserCredentialsConnectionFactoryAdapter"
+		primary="false">
+		<property name="targetConnectionFactory" ref="jmsConnectionFactorySecondary" />
+		<property name="username" value="${custom.mq.target.userid}" />
+		<property name="password" value="${custom.mq.target.password}" />
+	</bean>
+
+	<bean id="jmsTemplateSecondary" name="jmsTemplateSecondary"
+		class="org.springframework.jms.core.JmsTemplate">
+		<property name="connectionFactory" ref="jmsConnectionFactoryAdapterSecondary" />
+	</bean>
+
+	<bean id="jmsInboundDestination" class="org.springframework.jndi.JndiObjectFactoryBean">
+		<property name="jndiName" value="${jms.inbound.queue.jndi}" />
+		<property name="lookupOnStartup" value="false" />
+		<property name="cache" value="true" />
+		<property name="proxyInterface" value="javax.jms.Destination" />
+	</bean>
+
+	<bean id="jmsExceptionDestination" class="org.springframework.jndi.JndiObjectFactoryBean">
+		<property name="jndiName" value="${jms.exception.queue.jndi}" />
+		<property name="lookupOnStartup" value="false" />
+		<property name="cache" value="true" />
+		<property name="proxyInterface" value="javax.jms.Destination" />
+	</bean>
+
+	<bean id="jmsIntegration" class="com.hps.mayo.integration.components.JmsIntegration"></bean>
+
+	<!-- end connection configuration -->
+
+	<!-- Main message listener for the configured inbound source queue -->
+	<!-- Intentionally leaving concurrent-consumers and max-concurrent-consumers 
+		set to 1 to guarantee ordering. Essentially single threaded. -->
+	<!-- id="jmsInPrimary" destination-name="${jms.inbound.queue.name}" -->
+	<int-jms:message-driven-channel-adapter
+		id="jmsInPrimary" destination-name="${jms.inbound.queue.name}"
+		channel="inboundChannel" error-channel="errorChannel" auto-startup="true"
+		connection-factory="jmsConnectionFactoryAdapterPrimary"
+		transaction-manager="txManagerPrimary" acknowledge="transacted"
+		concurrent-consumers="1" max-concurrent-consumers="1" />
+
+	<!-- Backup channel adapter. Only started if the first cannot connect -->
+	<!-- Intentionally leaving concurrent-consumers and max-concurrent-consumers 
+		set to 1 to guarantee ordering. Essentially single threaded. -->
+	<int-jms:message-driven-channel-adapter
+		id="jmsInSecondary" destination-name="${jms.inbound.queue.name}"
+		channel="inboundChannel" error-channel="errorChannel" auto-startup="false"
+		connection-factory="jmsConnectionFactoryAdapterSecondary"
+		transaction-manager="txManagerSecondary" acknowledge="transacted"
+		concurrent-consumers="1" max-concurrent-consumers="1" />
+
+	<int:service-activator id="errorActivator"
+		input-channel="errorChannel" ref="errorHandler">
+	</int:service-activator>
+
+	<!-- Process inbound message -->
+	<int:service-activator id="inboundActivator"
+		input-channel="processingChannel" ref="inboundMessageHandler"
+		requires-reply="false">
+	</int:service-activator>
+
+
+	<bean primary="true" id="txManagerPrimary"
+		class="org.springframework.jms.connection.JmsTransactionManager">
+		<qualifier value="txManagerPrimary" />
+		<property name="connectionFactory" ref="jmsConnectionFactoryAdapterPrimary" />
+	</bean>
+
+	<bean id="txManagerSecondary"
+		class="org.springframework.jms.connection.JmsTransactionManager">
+		<qualifier value="txManagerSecondary" />
+		<property name="connectionFactory" ref="jmsConnectionFactoryAdapterSecondary" />
+	</bean>
+
+</beans>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-bnd xmlns="http://websphere.ibm.com/xml/ns/javaee"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://websphere.ibm.com/xml/ns/javaee http://websphere.ibm.com/xml/ns/javaee/ibm-web-bnd_1_2.xsd"
+	version="1.2">
+	<virtual-host name="default_host" />
+	<resource-ref name="jms/MDM_QUEUE_MONITOR_PRIMARY_CF"
+		binding-name="jms/MDM_QUEUE_MONITOR_PRIMARY_CF" />
+	<resource-ref name="jms/MDM_QUEUE_MONITOR_SECONDARY_CF"
+		binding-name="jms/MDM_QUEUE_MONITOR_SECONDARY_CF" />
+	<message-destination-ref name="jms/MDM_IN_SUB"
+		binding-name="jms/MDM_IN_SUB" />
+
+</web-bnd>

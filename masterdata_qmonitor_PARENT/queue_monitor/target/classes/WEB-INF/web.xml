@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app id="WebApp_ID" version="3.0"
+	xmlns="http://java.sun.com/xml/ns/javaee" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd">
+	<display-name>MdmQueueMonitor</display-name>
+	<resource-ref>
+		<res-ref-name>jms/MDM_QUEUE_MONITOR_PRIMARY_CF</res-ref-name>
+		<res-type>javax.jms.QueueConnectionFactory</res-type>
+		<res-auth>Container</res-auth>
+		<res-sharing-scope>Shareable</res-sharing-scope>
+	</resource-ref>
+	<resource-ref>
+		<res-ref-name>jms/MDM_QUEUE_MONITOR_SECONDARY_CF</res-ref-name>
+		<res-type>javax.jms.QueueConnectionFactory</res-type>
+		<res-auth>Container</res-auth>
+		<res-sharing-scope>Shareable</res-sharing-scope>
+	</resource-ref>	
+	<message-destination-ref>
+		<message-destination-ref-name>jms/MDM_IN_SUB</message-destination-ref-name>
+		<message-destination-type>javax.jms.Queue</message-destination-type>
+		<message-destination-usage>Consumes</message-destination-usage>
+		<message-destination-link>jms/MDM_IN_SUB</message-destination-link>
+	</message-destination-ref>
+	<message-destination>
+		<message-destination-name>jms/MDM_IN_SUB</message-destination-name>
+	</message-destination>
+
+</web-app>
